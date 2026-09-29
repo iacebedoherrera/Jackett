@@ -16,6 +16,7 @@ using Jackett.Common.Models;
 using Jackett.Common.Models.IndexerConfig;
 using Jackett.Common.Services.Interfaces;
 using Jackett.Common.Utils;
+using Jackett.Common.Utils.Clients;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NLog;
@@ -379,7 +380,8 @@ namespace Jackett.Common.Indexers.Definitions
                     if (resultLink == null)
                         continue;
 
-                    var link = new Uri(new Uri(SiteLink), resultLink.GetAttribute("href")).AbsoluteUri;
+                    var resultUri = new Uri(new Uri(SiteLink), resultLink.GetAttribute("href"));
+                    var link = resultUri.AbsoluteUri;
                     var title = resultLink.TextContent;
                     var cat = GetCategory(title, link);
                     var quality = "";
