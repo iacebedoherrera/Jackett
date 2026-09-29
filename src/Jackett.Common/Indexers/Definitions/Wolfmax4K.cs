@@ -167,7 +167,7 @@ namespace Jackett.Common.Indexers.Definitions
             // <li class="wolf-card-file">
             //   <a class="wolf-card-format" href="/serie/episodio/86a2xh"><strong>Episodio 1x10 -</strong><span>HDTV</span></a>
             //   <span class="wolf-card-size">614,84 MB</span>
-            //   <button class="protected-download" data-content-id="716379" data-tabla="series">
+            //   <button class="protected-download" data-content-code="5t43sm" data-tabla="series">
             // movies only have the quality: <strong>4K</strong>
             return card.QuerySelectorAll("li.wolf-card-file").Select(file =>
             {
@@ -182,7 +182,7 @@ namespace Jackett.Common.Indexers.Definitions
                     Size = file.QuerySelector(".wolf-card-size")?.TextContent,
                     PublishDate = publishDate,
                     Image = image,
-                    ContentId = button?.GetAttribute("data-content-id"),
+                    ContentCode = button?.GetAttribute("data-content-code"),
                     Tabla = button?.GetAttribute("data-tabla")
                 };
             }).ToList();
@@ -198,7 +198,7 @@ namespace Jackett.Common.Indexers.Definitions
             //   <a href="/serie/episodio/8fmmgy">1x01 -</a>
             //   <span class="wolf-episode-date">30/12/2016</span>
             //   <span class="wolf-episode-format">HDTV<span class="wolf-episode-size">731,27 MB</span></span>
-            //   <button class="protected-download" data-content-id="715964" data-tabla="series">
+            //   <button class="protected-download" data-content-code="8fmmgy" data-tabla="series">
             return dom.QuerySelectorAll("div.wolf-episode").Select(episode =>
             {
                 var link = episode.QuerySelector("a");
@@ -213,7 +213,7 @@ namespace Jackett.Common.Indexers.Definitions
                     Size = episode.QuerySelector(".wolf-episode-size")?.TextContent,
                     PublishDate = ParseDate(episode.QuerySelector(".wolf-episode-date")?.TextContent, "dd/MM/yyyy"),
                     Image = image,
-                    ContentId = button?.GetAttribute("data-content-id"),
+                    ContentCode = button?.GetAttribute("data-content-code"),
                     Tabla = button?.GetAttribute("data-tabla")
                 };
             }).ToList();
@@ -222,12 +222,16 @@ namespace Jackett.Common.Indexers.Definitions
         public override async Task<byte[]> Download(Uri link)
         {
             var parameters = HttpUtility.ParseQueryString(link.Query);
+            var contentCode = parameters["code"] ?? parameters["id"];
+            var tabla = parameters["tabla"];
+            if (contentCode.IsNullOrWhiteSpace() || tabla.IsNullOrWhiteSpace())
+                throw new Exception("The WolfMax4K download link is missing its code or category.");
 
             var generate = await DownloadApiRequestAsync(new
             {
                 action = "generate",
-                content_id = int.Parse(parameters["id"]),
-                tabla = parameters["tabla"]
+                code = contentCode,
+                tabla
             });
             var challenge = generate.Value<string>("challenge");
 
@@ -322,7 +326,7 @@ namespace Jackett.Common.Indexers.Definitions
             var image = item.Image;
 
             if (torrentName.IsNullOrWhiteSpace() || guid.IsNullOrWhiteSpace() || quality.IsNullOrWhiteSpace() ||
-                item.ContentId.IsNullOrWhiteSpace())
+                item.ContentCode.IsNullOrWhiteSpace() || item.Tabla.IsNullOrWhiteSpace())
             {
                 // Some torrents has no quality.
                 // Ignored it because they are torrents that are not well categorized
@@ -333,7 +337,7 @@ namespace Jackett.Common.Indexers.Definitions
             quality = ParseQuality(quality);
             var details = new Uri(new Uri(SiteLink), guid);
             // the torrent url is resolved by the download api of the site, see Download()
-            var link = new Uri(new Uri(SiteLink), $"api/descargas?tabla={item.Tabla}&id={item.ContentId}");
+            var link = new Uri(new Uri(SiteLink), $"api/descargas?tabla={Uri.EscapeDataString(item.Tabla)}&code={Uri.EscapeDataString(item.ContentCode)}");
             var title = ParseTitle(torrentName, item.EpisodeText, quality);
             var episodes = GetEpisodesFromTitle(title);
             var wolfmaxCategory = ParseCategory(torrentName, guid, quality);
@@ -526,7 +530,7 @@ namespace Jackett.Common.Indexers.Definitions
         public string Size { get; set; }
         public DateTime? PublishDate { get; set; }
         public string Image { get; set; }
-        public string ContentId { get; set; }
+        public string ContentCode { get; set; }
         public string Tabla { get; set; }
     }
 }
